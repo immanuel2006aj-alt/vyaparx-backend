@@ -1,50 +1,42 @@
 const express = require("express");
 const fetch = require("node-fetch");
-const bodyParser = require("body-parser");
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json());
 
+const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
-// Temporary in-memory storage (OK for MVP)
 const orders = {};
 
-function generateOrderId() {
-  return "VX" + Math.floor(100000 + Math.random() * 900000);
-}
+/* ✅ HOME (TEST) */
+app.get("/", (req, res) => {
+  res.send("Vyaparx backend is running");
+});
 
-// CREATE ORDER
+/* ✅ CREATE ORDER */
 app.post("/create-order", async (req, res) => {
-  const orderId = generateOrderId();
+  const orderId = "VX" + Date.now();
 
   orders[orderId] = {
-    ...req.body,
     status: "PENDING"
   };
 
-  const message = `
-🟢 New Order – Vyaparx
+  const text =
+`🟢 New Order – Vyaparx
 Order ID: ${orderId}
+Coin: ${req.body.coin}
+Amount: ₹${req.body.amount}
 
-👤 Name: ${req.body.name}
-📱 Mobile: ${req.body.mobile}
-
-💰 Coin: ${req.body.coin}
-💵 Amount: ₹${req.body.amount}
-📦 You Get: ${req.body.youGet}
-
-🏦 Wallet: ${req.body.wallet}
-🔐 UTR: ${req.body.utr}
-`;
+Choose an action below 👇`;
 
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: ADMIN_CHAT_ID,
-      text: message,
+      text,
       reply_markup: {
         inline_keyboard: [[
           { text: "✅ APPROVE", callback_data: `APPROVE_${orderId}` },
@@ -57,29 +49,32 @@ Order ID: ${orderId}
   res.json({ orderId });
 });
 
-// TELEGRAM CALLBACK
-app.post("/telegram-webhook", (req, res) => {
+/* ✅ TELEGRAM WEBHOOK */
+app.post("/telegram-webhook", async (req, res) => {
   const cb = req.body.callback_query;
   if (!cb) return res.sendStatus(200);
 
   const [action, orderId] = cb.data.split("_");
-  if (!orders[orderId]) return res.sendStatus(200);
 
   orders[orderId].status =
     action === "APPROVE" ? "SUCCESS" : "FAILED";
 
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callback_query_id: cb.id })
+  });
+
   res.sendStatus(200);
 });
 
-// CHECK ORDER STATUS
+/* ✅ ORDER STATUS */
 app.get("/order-status/:id", (req, res) => {
-  const order = orders[req.params.id];
-  if (!order) return res.json({ status: "UNKNOWN" });
-  res.json({ status: order.status });
+  res.json({
+    status: orders[req.params.id]?.status || "UNKNOWN"
+  });
 });
 
-// START SERVER
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
