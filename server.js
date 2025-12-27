@@ -8,8 +8,7 @@ const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
-const orders = {};
-
+const WEBHOOK_URL = "https://vyaparx-backend.onrender.com/telegram-webhook";
 /* ✅ HOME (TEST) */
 app.get("/", (req, res) => {
   res.send("Vyaparx backend is running");
@@ -52,18 +51,25 @@ Choose an action below 👇`;
 /* ✅ TELEGRAM WEBHOOK */
 app.post("/telegram-webhook", async (req, res) => {
   const cb = req.body.callback_query;
-  if (!cb) return res.sendStatus(200);
+  if (!cb || !cb.data) return res.sendStatus(200);
 
   const [action, orderId] = cb.data.split("_");
+
+if (!orders[orderId]) {
+  orders[orderId] = {};
+}
 
   orders[orderId].status =
     action === "APPROVE" ? "SUCCESS" : "FAILED";
 
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ callback_query_id: cb.id })
-  });
+  await fetch(
+    `https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: cb.id })
+    }
+  );
 
   res.sendStatus(200);
 });
@@ -73,7 +79,14 @@ app.get("/order-status/:id", (req, res) => {
   res.json({
     status: orders[req.params.id]?.status || "UNKNOWN"
   });
-});
+(async () => {
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: WEBHOOK_URL })
+  });
+  console.log("✅ Telegram webhook set")
+})();
 
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
