@@ -36,14 +36,12 @@ Choose an action below 👇`;
     body: JSON.stringify({
       chat_id: ADMIN_CHAT_ID,
       text,
-      reply_markup: JSON.stringify({
+      reply_markup: {
   inline_keyboard: [
     [{ text: "✅ APPROVE", callback_data: `APPROVE_${orderId}` }],
     [{ text: "❌ REJECT", callback_data: `REJECT_${orderId}` }]
   ]
-})
-  });
-
+}
   res.json({ orderId });
 });
 
